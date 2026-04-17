@@ -1,0 +1,14 @@
+# Intel RealSense SDK 2.0 Python Wrapper
+pyrealsense2
+
+# Image Processing (ArUco 및 시각화 포함)
+opencv-contrib-python
+
+# Matrix & Coordinate Transformations
+numpy
+
+# Gemini Robotics API (VLA 모델 연동용)
+google-genai
+
+# Environment Variable Management (.env 파일 로드용)
+python-dotenv

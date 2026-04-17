@@ -1,0 +1,24 @@
+# dakae_bringup - 비전 서브시스템 파라미터
+# 이 파일은 bringup에서 비전 노드로 전달되는 런타임 설정을 담습니다.
+# 캘리브레이션 행렬(T_base_cam)은 별도 파일(calibration.yaml)로 분리 예정.
+
+cube_service_server:
+  ros__parameters:
+    # --- RealSense 카메라 ---
+    color_width: 1280
+    color_height: 720
+    color_fps: 30
+    depth_width: 1280
+    depth_height: 720
+    depth_fps: 30
+
+    # --- Gemini 모델 ---
+    gemini_model: "gemini-robotics-er-1.5-preview"
+    gemini_temperature: 0.1
+
+    # --- 서비스 이름 ---
+    detect_service_name: "detect_cubes"
+
+    # --- 디버그 ---
+    debug_mode: false
+    save_frames: false
