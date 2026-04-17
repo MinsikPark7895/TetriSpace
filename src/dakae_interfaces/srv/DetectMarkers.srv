@@ -1,0 +1,6 @@
+# Request (요청 데이터 없음)
+---
+# Response
+MarkerInfo[] markers
+bool success
+string message

@@ -1,0 +1,6 @@
+# 1. 시스템 패키지 및 ROS 의존성 설치
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+
+# 2. 파이썬 전용 외부 라이브러리 설치
+pip install -r src/dakae_vision/requirements.txt

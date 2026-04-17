@@ -1,0 +1,8 @@
+# Request
+int32 stroke    # 0 (완전 열림) ~ 1000 (완전 닫힘), 중간값 자유롭게 가능
+
+---
+
+# Response
+bool success
+string message
