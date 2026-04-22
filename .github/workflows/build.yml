@@ -70,16 +70,15 @@ jobs:
       # ── STEP 5: rosdep 의존성 설치 ──────────────────────────────────────────
       # action-ros-ci 대신 직접 colcon을 실행하는 방식으로 변경
       # (action-ros-ci 는 내부적으로 vcs import 를 실행해 중첩 git 저장소 문제 발생)
-      # --skip-keys: TetriSpace 커스텀 패키지는 rosdep DB에 없으므로 제외
+      # src 폴더 전체가 아닌 빌드할 대상 패키지만 지정하여 불필요한 의존성 검사 우회
       - name: Install ROS dependencies (rosdep)
         run: |
           source /opt/ros/humble/setup.bash
           rosdep update
-          rosdep install --from-paths src \
+          rosdep install --from-paths src/dakae_interfaces src/dakae_vision \
             --ignore-src \
             --rosdistro humble \
-            -y \
-            --skip-keys "dakae_interfaces dakae_vision test_first dakae_bringup"
+            -y
 
       # ── STEP 6: colcon 빌드 ──────────────────────────────────────────────────
       # --packages-select: 커스텀 패키지 2개만 빌드
