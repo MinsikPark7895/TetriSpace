@@ -67,30 +67,50 @@ jobs:
       - name: Install Python dependencies
         run: pip3 install -r src/dakae_vision/requirements.txt
 
-      # ── STEP 5: colcon 빌드 + ament 린트 테스트 ─────────────────────────────
-      # ros-tooling/action-ros-ci 가 내부적으로 수행하는 작업:
-      #   1) rosdep install (패키지 의존성 자동 설치)
-      #   2) colcon build --packages-up-to <package-name>
-      #   3) colcon test (flake8, pep257 등 ament 린트 포함)
-      # GEMINI_API_KEY: GitHub Secrets에서 주입 (Settings → Secrets → Actions)
-      #
-      # [CI 대상에서 제외된 패키지]
-      #   test_first   : dsr_msgs2(doosan-robot2) 의존 → rosdep 미등록 패키지라 CI 불가
-      #   dakae_bringup: gnome-terminal 실행 → headless CI 환경에서 동작 불가
-      - name: Build and test (action-ros-ci)
-        uses: ros-tooling/action-ros-ci@v0.4
-        with:
-          package-name: |
-            dakae_interfaces
-            dakae_vision
-          target-ros2-distro: humble
-          import-token: ${{ secrets.GITHUB_TOKEN }}  # 프라이빗 저장소 접근용
+      # ── STEP 5: rosdep 의존성 설치 ──────────────────────────────────────────
+      # action-ros-ci 대신 직접 colcon을 실행하는 방식으로 변경
+      # (action-ros-ci 는 내부적으로 vcs import 를 실행해 중첩 git 저장소 문제 발생)
+      # --skip-keys: TetriSpace 커스텀 패키지는 rosdep DB에 없으므로 제외
+      - name: Install ROS dependencies (rosdep)
+        run: |
+          source /opt/ros/humble/setup.bash
+          rosdep update
+          rosdep install --from-paths src \
+            --ignore-src \
+            --rosdistro humble \
+            -y \
+            --skip-keys "dakae_interfaces dakae_vision test_first dakae_bringup"
+
+      # ── STEP 6: colcon 빌드 ──────────────────────────────────────────────────
+      # --packages-select: 커스텀 패키지 2개만 빌드
+      #   CI 대상 제외:
+      #     test_first   : dsr_msgs2(doosan-robot2) 의존 → rosdep 미등록
+      #     dakae_bringup: gnome-terminal 실행 → headless CI 불가
+      # --event-handlers console_direct+: 빌드 로그를 Actions 화면에 즉시 출력
+      - name: Build (colcon)
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build \
+            --packages-select dakae_interfaces dakae_vision \
+            --event-handlers console_direct+
         env:
           # GitHub Secrets에서 주입 — Settings → Secrets and variables → Actions 에서 등록
-          # MY_GEMINI_API_KEY  : 1번 키 (cube_service_server에서 참고용)
-          # MY_GEMINI_API_KEY2 : 2번 키 (현재 cube_service_server가 실제 사용 중)
-          MY_GEMINI_API_KEY: ${{ secrets.MY_GEMINI_API_KEY }}
+          # MY_GEMINI_API_KEY_VLA1  : 1번 키 (vla_node 사용)
+          # MY_GEMINI_API_KEY2 : 2번 키 (cube_service_server 사용)
+          MY_GEMINI_API_KEY_VLA1: ${{ secrets.MY_GEMINI_API_KEY_VLA1 }}
           MY_GEMINI_API_KEY2: ${{ secrets.MY_GEMINI_API_KEY2 }}
+
+      # ── STEP 7: colcon 린트 테스트 ──────────────────────────────────────────
+      # ament 린트 (flake8, pep257, copyright 검사 등) 실행
+      # colcon test-result --verbose: 실패한 테스트 상세 출력
+      - name: Test - lint (colcon)
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test \
+            --packages-select dakae_interfaces dakae_vision \
+            --event-handlers console_direct+
+          colcon test-result --verbose
 
       # ── STEP 6: 빌드 실패 시 로그 업로드 ────────────────────────────────────
       # 빌드/테스트가 실패한 경우에만 실행됨
