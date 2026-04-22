@@ -1,0 +1,15 @@
+# ROS 2 빌드 산출물
+build/
+install/
+log/
+
+# 환경 변수 (API 키 보안)
+.env
+
+# 에디터
+.vscode/
+
+# Python 캐시 (빌드 결과물, git에 불필요)
+**/__pycache__/
+**/*.pyc
+**/*.pyo
