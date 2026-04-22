@@ -65,7 +65,9 @@ jobs:
       # dakae_vision/requirements.txt 기반:
       #   pyrealsense2, opencv-contrib-python, numpy, google-genai, python-dotenv
       - name: Install Python dependencies
-        run: pip3 install -r src/dakae_vision/requirements.txt
+        run: |
+          pip3 install -r src/dakae_vision/requirements.txt
+          pip3 install -U pytest
 
       # ── STEP 5: rosdep 의존성 설치 ──────────────────────────────────────────
       # action-ros-ci 대신 직접 colcon을 실행하는 방식으로 변경
