@@ -73,18 +73,24 @@ jobs:
       #   2) colcon build --packages-up-to <package-name>
       #   3) colcon test (flake8, pep257 등 ament 린트 포함)
       # GEMINI_API_KEY: GitHub Secrets에서 주입 (Settings → Secrets → Actions)
+      #
+      # [CI 대상에서 제외된 패키지]
+      #   test_first   : dsr_msgs2(doosan-robot2) 의존 → rosdep 미등록 패키지라 CI 불가
+      #   dakae_bringup: gnome-terminal 실행 → headless CI 환경에서 동작 불가
       - name: Build and test (action-ros-ci)
         uses: ros-tooling/action-ros-ci@v0.4
         with:
           package-name: |
             dakae_interfaces
             dakae_vision
-            test_first
-            dakae_bringup
           target-ros2-distro: humble
           import-token: ${{ secrets.GITHUB_TOKEN }}  # 프라이빗 저장소 접근용
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}  # .env 대체 (CI 환경용)
+          # GitHub Secrets에서 주입 — Settings → Secrets and variables → Actions 에서 등록
+          # MY_GEMINI_API_KEY  : 1번 키 (cube_service_server에서 참고용)
+          # MY_GEMINI_API_KEY2 : 2번 키 (현재 cube_service_server가 실제 사용 중)
+          MY_GEMINI_API_KEY: ${{ secrets.MY_GEMINI_API_KEY }}
+          MY_GEMINI_API_KEY2: ${{ secrets.MY_GEMINI_API_KEY2 }}
 
       # ── STEP 6: 빌드 실패 시 로그 업로드 ────────────────────────────────────
       # 빌드/테스트가 실패한 경우에만 실행됨

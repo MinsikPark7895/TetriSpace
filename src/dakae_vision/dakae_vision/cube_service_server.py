@@ -3,7 +3,9 @@ from rclpy.node import Node
 import cv2
 import numpy as np
 import json
+import os
 from cv_bridge import CvBridge
+from dotenv import load_dotenv
 
 from sensor_msgs.msg import Image, CameraInfo
 from dakae_interfaces.srv import DetectCubes
@@ -12,14 +14,18 @@ from geometry_msgs.msg import Vector3
 from google import genai
 from google.genai import types
 
+# .env 파일에서 환경 변수 로드 (MY_GEMINI_API_KEY, MY_GEMINI_API_KEY2)
+# .env 파일 위치: TetriSpace 워크스페이스 루트 (git에는 올라가지 않음)
+load_dotenv()
+
 class CubeServiceServer(Node):
     def __init__(self):
         super().__init__('cube_service_server')
         
         # 1. 환경 설정 및 API 클라이언트
 
-        # self.api_key = ""
-        self.api_key = ""
+        # self.api_key = MY_GEMINI_API_KEY
+        self.api_key = os.getenv("MY_GEMINI_API_KEY2")
         
         self.client = genai.Client(api_key=self.api_key)
         

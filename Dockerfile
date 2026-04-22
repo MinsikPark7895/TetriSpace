@@ -68,6 +68,14 @@ RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
 ENV ROS_DOMAIN_ID=29        # doosan-robot2와 동일한 ROS 도메인 ID (네트워크 격리)
 ENV PYTHONUNBUFFERED=1      # Python 출력 버퍼링 비활성화 (docker logs 즉시 출력)
 
+# Gemini API 키 플레이스홀더
+# .env 파일은 .dockerignore로 제외되므로 컨테이너에 포함되지 않음
+# 실행 시 아래 방법 중 하나로 주입:
+#   방법 1) docker run --env-file .env tetrspace:test bash
+#   방법 2) docker run -e MY_GEMINI_API_KEY2=<값> tetrspace:test bash
+ENV MY_GEMINI_API_KEY=""
+ENV MY_GEMINI_API_KEY2=""
+
 # ── 기본 실행 명령 ───────────────────────────────────────────────────────────
 # docker run 시 bash 쉘로 진입 (ros2 launch 등 수동 실행 가능)
 CMD ["/bin/bash"]
