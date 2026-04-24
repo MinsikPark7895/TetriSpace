@@ -36,6 +36,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/DetectMarkers.srv"
   "srv/ExecuteTasks.srv"
   "srv/MoveGripper.srv"
+  "action/PickAndPlace.action"
   DEPENDENCIES geometry_msgs
 )
 ament_package()
