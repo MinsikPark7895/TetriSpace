@@ -1,0 +1,6 @@
+# Request
+TaskInfo[] tasks
+---
+# Response
+bool success
+string message
