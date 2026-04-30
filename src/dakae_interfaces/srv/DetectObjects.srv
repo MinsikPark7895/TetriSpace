@@ -1,0 +1,5 @@
+string[] target_labels
+---
+ObjectInfo[] detected_objects
+bool success
+string message
