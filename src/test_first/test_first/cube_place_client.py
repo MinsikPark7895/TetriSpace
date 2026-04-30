@@ -98,9 +98,9 @@ def main(args=None):
         # cube n -> target i
         # 예시: cube 1을 target 4로, cube 2를 target 1로 보냄
         task_pairs = [
-            (1, 1),
             (2, 2),
             (3, 3),
+            (4, 4),
         ]
 
         def go_home():
@@ -154,7 +154,8 @@ def main(args=None):
         def pick_cycle(x, y, z, cube_rz):
             current_orientation = get_current_orientation_base()
             current_rz = current_orientation[2]
-            target_rz = choose_shortest_grasp_rz(cube_rz, current_rz)
+            # target_rz = choose_shortest_grasp_rz(cube_rz, current_rz)
+            target_rz = current_rz
 
             # 1) 현재 자세(rx, ry, rz)를 그대로 유지한 채 접근
             fixed_approach = make_approach_pos(x, y, z, current_orientation)
@@ -233,6 +234,7 @@ def main(args=None):
             raise RuntimeError(f"마커 검출 실패: {response.message}")
         if len(response.markers) == 0:
             raise RuntimeError("검출된 마커 없음")
+
 
         cubes = {}
         targets = {}
