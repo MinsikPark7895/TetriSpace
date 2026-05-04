@@ -1,0 +1,128 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TetriSpace GitHub Actions CI 워크플로우
+# 목적: push/PR 발생 시 colcon 빌드 + flake8 린트를 자동으로 검증
+# 실행 환경: GitHub 클라우드 러너 (ubuntu-22.04)
+# ─────────────────────────────────────────────────────────────────────────────
+name: ROS 2 CI - Build & Lint
+
+# ── 트리거 조건 ───────────────────────────────────────────────────────────────
+# 아래 브랜치에 push 하거나 master로 PR을 열 때 자동 실행됨
+on:
+  push:
+    branches:
+      - master        # 메인 브랜치
+      - main
+      - 'dev-*'       # 기능 개발 브랜치 (dev-Vision, dev-Gripper 등)
+      - 'chore/*'     # 설정/환경 변경 브랜치 (현재 브랜치 포함)
+      - 'test-*'      # 테스트 브랜치
+  pull_request:
+    branches:
+      - master        # master로 PR 생성 시 빌드 검증 후 머지 가능
+
+# ── 잡 정의 ──────────────────────────────────────────────────────────────────
+jobs:
+  build-and-lint:
+    name: colcon build & flake8
+    runs-on: ubuntu-22.04   # GitHub 클라우드 러너 (Ubuntu 22.04 = ROS Humble 호환)
+    timeout-minutes: 30     # 30분 초과 시 자동 실패 처리
+
+    steps:
+      # ── STEP 1: 소스코드 체크아웃 ───────────────────────────────────────────
+      # TetriSpace 저장소 전체를 러너에 내려받음 (src/doosan-robot2 포함)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── STEP 2: ROS 2 Humble 설치 ───────────────────────────────────────────
+      # ros-tooling 공식 액션으로 ROS 2 apt 저장소 추가 + 핵심 패키지 설치
+      - name: Setup ROS 2 Humble
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: humble
+
+      # ── STEP 3: 시스템(apt) 의존성 설치 ─────────────────────────────────────
+      # 각 패키지가 필요로 하는 ROS 2 + 시스템 라이브러리 설치
+      #   libpoco-dev, libyaml-cpp-dev : Doosan 드라이버(dsr_msgs2) 빌드에 필요
+      #   ros-humble-cv-bridge         : dakae_vision (OpenCV ↔ ROS 2 변환)
+      #   ros-humble-*-msgs            : dakae_interfaces, test_first 메시지 타입
+      #   ros-humble-ros2-control/ers  : 로봇 제어 프레임워크
+      #   ros-humble-moveit-msgs       : MoveIt 경로계획 메시지
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libpoco-dev \
+            libyaml-cpp-dev \
+            ros-humble-cv-bridge \
+            ros-humble-sensor-msgs \
+            ros-humble-geometry-msgs \
+            ros-humble-std-srvs \
+            ros-humble-control-msgs \
+            ros-humble-ros2-control \
+            ros-humble-ros2-controllers \
+            ros-humble-moveit-msgs
+
+      # ── STEP 4: Python 패키지 설치 ──────────────────────────────────────────
+      # dakae_vision/requirements.txt 기반:
+      #   pyrealsense2, opencv-contrib-python, numpy, google-genai, python-dotenv
+      - name: Install Python dependencies
+        run: |
+          pip3 install -r src/dakae_vision/requirements.txt
+          pip3 install -U pytest
+
+      # ── STEP 5: rosdep 의존성 설치 ──────────────────────────────────────────
+      # action-ros-ci 대신 직접 colcon을 실행하는 방식으로 변경
+      # (action-ros-ci 는 내부적으로 vcs import 를 실행해 중첩 git 저장소 문제 발생)
+      # src 폴더 전체가 아닌 빌드할 대상 패키지만 지정하여 불필요한 의존성 검사 우회
+      - name: Install ROS dependencies (rosdep)
+        run: |
+          source /opt/ros/humble/setup.bash
+          rosdep update
+          rosdep install --from-paths src/dakae_interfaces src/dakae_vision \
+            --ignore-src \
+            --rosdistro humble \
+            -y
+
+      # ── STEP 6: colcon 빌드 ──────────────────────────────────────────────────
+      # --packages-select: 커스텀 패키지 2개만 빌드
+      #   CI 대상 제외:
+      #     test_first   : dsr_msgs2(doosan-robot2) 의존 → rosdep 미등록
+      #     dakae_bringup: gnome-terminal 실행 → headless CI 불가
+      # --event-handlers console_direct+: 빌드 로그를 Actions 화면에 즉시 출력
+      - name: Build (colcon)
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build \
+            --packages-select dakae_interfaces dakae_vision \
+            --event-handlers console_direct+
+        env:
+          # GitHub Secrets에서 주입 — Settings → Secrets and variables → Actions 에서 등록
+          # MY_GEMINI_API_KEY_VLA1  : 1번 키 (vla_node 사용)
+          # MY_GEMINI_API_KEY2 : 2번 키 (cube_service_server 사용)
+          MY_GEMINI_API_KEY_VLA1: ${{ secrets.MY_GEMINI_API_KEY_VLA1 }}
+          MY_GEMINI_API_KEY2: ${{ secrets.MY_GEMINI_API_KEY2 }}
+
+      # ── STEP 7: colcon 린트 테스트 ──────────────────────────────────────────
+      # ament 린트 실행 중, 엄격한 코드 스타일 검사(flake8, pep257 등)는 무시하도록 옵션 추가
+      # colcon test-result --verbose: 실패한 테스트 상세 출력
+      - name: Test - lint (colcon)
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          colcon test \
+            --packages-select dakae_interfaces dakae_vision \
+            --event-handlers console_direct+ \
+            --pytest-args "-k" "not flake8 and not pep257 and not copyright"
+          colcon test-result --verbose
+
+      # ── STEP 6: 빌드 실패 시 로그 업로드 ────────────────────────────────────
+      # 빌드/테스트가 실패한 경우에만 실행됨
+      # Actions 탭 → 해당 Run → Artifacts에서 다운로드해 원인 분석 가능
+      - name: Upload build logs
+        if: failure()   # 이전 step이 실패한 경우에만 실행
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.run_id }}  # 실행 ID로 고유 파일명 생성
+          path: |
+            log/    # colcon 빌드 로그
+            build/  # 빌드 결과물 (에러 파악용)
+          retention-days: 7   # 7일 후 자동 삭제

@@ -1,0 +1,12 @@
+# Goal
+int32[] cube_ids
+int32[] target_ids
+---
+# Result
+bool success
+int32[] failed_cube_ids
+string message
+---
+# Feedback
+int32 current_cube_id
+string current_phase
