@@ -9,6 +9,9 @@ log/
 # 에디터
 .vscode/
 
+# 제외된 대형/외부 실험 패키지
+src/gemini_vla_Doosan-robotic-arm/
+
 # Python 캐시 (빌드 결과물, git에 불필요)
 **/__pycache__/
 **/*.pyc

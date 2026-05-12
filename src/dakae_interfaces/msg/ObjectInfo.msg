@@ -1,0 +1,13 @@
+int32 id
+string label
+geometry_msgs/Vector3 position
+float32 angle_deg
+bool angle_reliable
+int32 pixel_x
+int32 pixel_y
+int32 bbox_x
+int32 bbox_y
+int32 bbox_w
+int32 bbox_h
+float32 area
+float32 confidence

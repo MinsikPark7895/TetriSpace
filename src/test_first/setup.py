@@ -35,6 +35,9 @@ setup(
             'gripper_server = test_first.gripper_server:main',
             'cube_place = test_first.cube_place_client:main',
             'go_home = test_first.home_client:main',
+            'vision_arm_test = test_first.vision_arm_test:main',
+            'yolo_pick_place = test_first.yolo_pick_place:main',
+            'arm_move = test_first.arm_move:main',
         ],
     },
 )

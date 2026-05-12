@@ -97,6 +97,8 @@ Gemini API  : google-genai (유효한 API Key 필요)
 | `dakae_interfaces` | 커스텀 msg/srv 정의 (CubeInfo, MarkerInfo, TaskInfo, DetectCubes, DetectMarkers, MoveGripper) |
 | `dakae_vision` | 카메라 노드 + 큐브/마커 인식 서버 |
 | `test_first` | 그리퍼 서버 + 로봇 Pick&Place 클라이언트 |
+| `dsr_gripper_tcp` | Doosan DRL TCP Bridge 기반 RH-P12-RN(A) 그리퍼 제어 노드, 웹 대시보드, 서비스/액션 서버 |
+| `dsr_gripper_tcp_interfaces` | 그리퍼 상태 msg, 제어 srv, 안전 파지 action 정의 |
 | `dakae_bringup` | 전체 시스템 통합 런치파일 |
 | `doosan-robot2` | Doosan 공식 ROS 2 드라이버 (서브모듈) |
 | `RH-P12-RN-A` | ROBOTIS 그리퍼 참조 패키지 (서브모듈) |
@@ -146,6 +148,50 @@ DetectMarkers.srv
 MoveGripper.srv
   Request : int32 stroke            # 0(완전 열림) ~ 1000(완전 닫힘)
   Response: bool success, string message
+```
+
+## 📋 그리퍼 TCP 인터페이스 (dsr_gripper_tcp_interfaces)
+
+신규 그리퍼 패키지는 기존 `MoveGripper.srv`보다 더 많은 피드백을 제공하기 위해
+별도 인터페이스 패키지를 사용합니다.
+
+### 메시지 타입
+
+```text
+GripperState.msg
+  bool ready
+  bool torque_enabled
+  bool moving
+  bool in_position
+  bool grasp_detected
+  bool object_lost
+  int32 present_position
+  int32 goal_position
+  int32 present_current
+  int32 current_limit
+  int32 present_velocity
+  int32 present_temperature
+  string status_text
+```
+
+### 서비스 타입
+
+```text
+SetPosition.srv          # 목표 위치 이동
+GetPosition.srv          # 현재 위치/전류/잡힘 상태 조회
+SetMotionProfile.srv     # goal_current, velocity, acceleration 설정
+GetMotionProfile.srv     # 캐시된 motion profile 조회
+SetTorque.srv            # 토크 ON/OFF
+GetState.srv             # 전체 GripperState 조회
+```
+
+### 액션 타입
+
+```text
+SafeGrasp.action
+  Goal   : target_position, max_current, current_delta_threshold, timeout_sec
+  Result : final_position, final_current, grasp_detected, object_lost
+  Feedback: present_position, present_current, current_delta, grasp_detected
 ```
 
 ---
@@ -211,6 +257,48 @@ ros2 run dakae_vision cube_service_server
 ```
 
 ### 7. 그리퍼 서버 실행 (터미널 C)
+
+신규 TCP bridge 기반 서비스/액션 서버를 권장합니다.
+
+```bash
+source install/setup.bash
+
+ros2 launch dsr_gripper_tcp gripper_service_node.launch.py \
+  controller_host:=<ROBOT_IP> \
+  namespace:=dsr01 \
+  service_prefix:=
+```
+
+토크 ON:
+
+```bash
+ros2 service call /gripper_service/set_torque \
+  dsr_gripper_tcp_interfaces/srv/SetTorque "{enabled: true}"
+```
+
+위치 이동:
+
+```bash
+ros2 service call /gripper_service/set_position \
+  dsr_gripper_tcp_interfaces/srv/SetPosition "{position: 700, timeout_sec: 5.0}"
+```
+
+전류 피드백 기반 안전 파지:
+
+```bash
+ros2 action send_goal /gripper_service/safe_grasp \
+  dsr_gripper_tcp_interfaces/action/SafeGrasp \
+  "{target_position: 700, max_current: 400, current_delta_threshold: 120, timeout_sec: 8.0}" \
+  --feedback
+```
+
+상태 모니터링:
+
+```bash
+ros2 topic echo /gripper_service/state
+```
+
+기존 `test_first` 기반 단순 그리퍼 서버는 아래처럼 실행할 수 있습니다.
 
 ```bash
 source install/setup.bash
@@ -370,6 +458,19 @@ TetriSpace/
 │   │       ├── arm_gripper_test_client.py
 │   │       ├── home_client.py
 │   │       └── test_color.py
+│   ├── dsr_gripper_tcp/           # DRL TCP Bridge 기반 그리퍼 패키지
+│   │   ├── dsr_gripper_tcp/
+│   │   │   ├── gripper_tcp_bridge.py
+│   │   │   ├── gripper_tcp_protocol.py
+│   │   │   ├── web_dashboard_node.py
+│   │   │   └── gripper_service_node.py
+│   │   └── launch/
+│   │       ├── web_dashboard_node.launch.py
+│   │       └── gripper_service_node.launch.py
+│   ├── dsr_gripper_tcp_interfaces/ # 그리퍼 msg/srv/action 인터페이스
+│   │   ├── msg/GripperState.msg
+│   │   ├── srv/
+│   │   └── action/SafeGrasp.action
 │   ├── dakae_bringup/             # 통합 런치 패키지
 │   │   └── launch/
 │   │       ├── system.launch.py       # 전체 시스템 통합 런치
@@ -388,3 +489,98 @@ TetriSpace/
 Apache License 2.0
 
 ---
+
+## 🚀 ex-grip_vision 브랜치 — 통합 실행 시스템 (모윤근)
+
+### 개요
+
+YOLO8 비전 탐지와 로봇팔/그리퍼 제어를 통합한 대화형 CLI 조작기(`dakae_helper.py`)와 실행 스크립트들을 추가했습니다.
+
+---
+
+### 실행 순서
+
+#### 1. 로봇 드라이버 (터미널 1)
+
+```bash
+source ~/colcon_ws/install/setup.bash && ros2 launch dsr_bringup2 dsr_bringup2_rviz.launch.py mode:=real host:=110.120.1.56 model:=e0509 name:=dsr01
+```
+
+#### 2. 통합 시스템 런치 (터미널 2)
+
+```bash
+source ~/TetriSpace/install/setup.bash && ros2 launch dakae_bringup system.launch.py
+```
+
+런치가 실행되면:
+- YOLO8 비전 노드 (`object_contour_service_server`) 자동 기동
+- 그리퍼 노드 (`gripper_service_node`) 자동 기동
+- 3초 후 조작기 터미널 자동 오픈
+
+#### 3. 빌드
+
+```bash
+cd ~/TetriSpace
+colcon build --packages-select dakae_bringup test_first
+source install/setup.bash
+```
+
+---
+
+### 조작기 메뉴 구조 (`dakae_helper.py`)
+
+```
+[메인]
+├── 1) 프로그램 작동
+│   ├── 1) 전체 작동       ← YOLO8 탐지 → 물체 선택 → 목적지 선택 → 실행
+│   ├── 2) 비전 작동       ← YOLO8 촬영 (전체 / 라벨 지정)
+│   └── 3) 로봇 작동
+│       ├── 1) 그리퍼       ← 열기 / 닫기 / 직접 입력 (SafeGrasp 액션)
+│       └── 2) 로봇팔       ← 홈 이동 / 좌표 이동 (movel)
+└── 2) 환경 설정
+    ├── 1) 서비스 목록
+    ├── 2) 노드 목록
+    ├── 3) 토픽 목록
+    └── 4) 로그 확인
+```
+
+---
+
+### 추가/수정된 파일
+
+| 파일 | 내용 |
+|------|------|
+| `src/dakae_bringup/scripts/dakae_helper.py` | 대화형 CLI 조작기 전면 재작성 |
+| `src/dakae_bringup/launch/system.launch.py` | 그리퍼 노드 통합, 런치 시 SHUTDOWN 패킷 자동 전송 |
+| `src/dakae_vision/launch/full_vision.launch.py` | object_contour_service_server 단독 실행으로 변경 |
+| `src/dakae_vision/setup.py` | launch 디렉토리 install 추가 |
+| `src/test_first/test_first/yolo_pick_place.py` | YOLO8 탐지 결과 기반 픽앤플레이스 실행 스크립트 |
+| `src/test_first/test_first/arm_move.py` | 특정 좌표로 로봇팔 movel 이동 스크립트 |
+| `src/test_first/setup.py` | yolo_pick_place, arm_move 엔트리포인트 추가 |
+
+---
+
+### 그리퍼 제어 방식
+
+- 서비스(`SetPosition`) **사용 안 함**
+- `dsr_gripper_tcp` 패키지의 **SafeGrasp 액션만** 사용
+- 그리퍼 회전 고정 (YOLO `angle_deg` 무시) — 홈 위치 RX/RY/RZ 고정 사용
+- `GRIPPER_OFFSET = 85.0mm` 적용
+
+---
+
+### 그리퍼 노드 재시작이 필요한 경우
+
+런치를 껐다 켤 때 그리퍼 노드가 DRL 포트 점유로 실패하면:
+
+```bash
+python3 -c "
+import socket, struct
+header = struct.pack('>2sBBHH', b'GP', 1, 6, 1, 0)
+s = socket.socket(); s.settimeout(3)
+s.connect(('110.120.1.56', 20002)); s.sendall(header); s.close()
+print('SHUTDOWN 전송 완료')
+"
+```
+
+위 명령으로 DRL TCP 서버를 초기화한 뒤 런치를 다시 실행합니다.
